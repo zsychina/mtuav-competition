@@ -104,9 +104,22 @@ int main(int argc, const char* argv[]) {
         )
     );
     LOG(INFO) << "开始计算网格...";
+    std::vector<Grid3> pass_list; // 记录无需再查询的坐标(x, y, z)
     for (int x = 0; x < map_grid.size(); x++) {
         for (int y = 0; y < map_grid[x].size(); y++) {
             for (int z = 0; z < map_grid[x][y].size(); z++) {
+                bool pass_query = false;
+                for (const Grid3& pass : pass_list) {
+                    if (x == pass.x &&
+                        y == pass.y &&
+                        z == pass.z) {
+                            pass_query = true; // 在pass_list上，无需再查询
+                            break;
+                        }
+                }
+                if (pass_query) {
+                    continue;
+                }
                 float mid_x, mid_y, mid_z; // 每个cell的中心点坐标
                 mid_x = x * cell_size_x + 0.5 * cell_size_x;
                 mid_y = y * cell_size_y + 0.5 * cell_size_y;
@@ -115,6 +128,22 @@ int main(int argc, const char* argv[]) {
                 if (voxel != nullptr) {
                     if (voxel->distance >= 0.5 * cell_size_x) {
                         map_grid[x][y][z] = 0; // 无障碍物
+                        int pass_x_n = (voxel->distance - 0.5 * cell_size_x) / cell_size_x;
+                        int pass_y_n = (voxel->distance - 0.5 * cell_size_y) / cell_size_y;
+                        int pass_z_n = (voxel->distance - 0.5 * cell_size_z) / cell_size_z;
+                        for (int i = x + pass_x_n; i > x - pass_x_n; i--) {
+                            for (int j = y + pass_y_n; j > y - pass_y_n; j--) {
+                                for (int k = z + pass_z_n; k > z - pass_z_n; k--) {
+                                    if (i >= 0 && i < map_grid.size() &&
+                                        j >= 0 && j < map_grid[i].size() &&
+                                        k >= 0 && k < map_grid[i][j].size()) {
+                                            pass_list.push_back(Grid3(i, j, k));
+                                        } // 待改进，其实应该是球形                                
+                                }
+                            }
+                        }
+
+
                     } else {
                         map_grid[x][y][z] = 1; // 有障碍物
                     }

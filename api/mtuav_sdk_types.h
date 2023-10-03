@@ -18,6 +18,12 @@ typedef struct Vec3 {
   double z;
 } Vec3;
 
+typedef struct Grid3 {
+  int x;
+  int y;
+  int z;
+} Grid3;
+
 typedef struct Segment {
   uint64_t time_ms;         // 在time_ms飞行到目标位置，此时间是相对于起飞时间
   int seg_type;             // 此片段是那种类型，起飞、飞行、降落；要求起飞和降落必须垂直
