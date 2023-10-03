@@ -61,7 +61,6 @@ TODO
 - 无人机之间防撞
 - 例程的充电算法对无人机是否携带货物并无判断，可能会使送货超时
 - 对于飞行中的无人机，也要决策，是保持既有轨迹还是临时去做别的（充电或轨迹附近突然有订单等）
-- 如果两无人机靠近，可让一架悬停
 - 轨迹规划需考虑地图，或可构造有符号距离场
 - 取送货策略：可以取一个货送一个货（例程），也可以先取多个货统一送（邮差问题？），具体考虑订单时空分布
 - 算法调用间隔可根据性能优化（？）
@@ -157,7 +156,7 @@ int64_t myAlgorithm::solve() {
                               : drones_without_cargo.size();
 
 
-    std::vector<std::vector<double>> graph(pickup_plan_num, std::vector<double>(pickup_plan_num, 1e10)); // 距离矩阵
+    std::vector<std::vector<double>> cost(pickup_plan_num, std::vector<double>(pickup_plan_num, 1e10)); // 距离矩阵
     // 计算距离矩阵
     for (int i = 0; i < pickup_plan_num; i++) {
         auto the_drone = drones_without_cargo.at(i); // 改进：这里仍然是随机取了几架无人机，未必最优，或可对无人机vector进行重排列
@@ -171,18 +170,18 @@ int64_t myAlgorithm::solve() {
                 std::pow(the_cargo.position.x - the_cargo.target_position.x, 2) +
                 std::pow(the_cargo.position.y - the_cargo.target_position.y, 2)
             );
-            graph[i][j] = distance1 + distance2;
+            cost[i][j] = distance1 + distance2;
         }
     }
 
     LOG(INFO) << "Distance calculated: ";
-    show_2dv(graph);
+    show_2dv(cost);
 
     HungarianAlgorithm HungAlgo;
     std::vector<int> assignment;
 
     if (pickup_plan_num > 0) {
-        double cost = HungAlgo.Solve(graph, assignment);
+        double cost = HungAlgo.Solve(cost, assignment);
         LOG(INFO) << "Total cost: " << cost;
         for (int x = 0; x < pickup_plan_num; x++) {
             LOG(INFO) << "Drone: " << x << " to pick Cargo: " << assignment[x];
