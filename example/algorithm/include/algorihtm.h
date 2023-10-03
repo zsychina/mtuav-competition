@@ -63,6 +63,12 @@ class myAlgorithm : public Algorithm {
     std::tuple<std::vector<Segment>, int64_t> trajectory_generation(Vec3 start, Vec3 end, DroneStatus drone);
     // 打印segment的信息
     std::string segments_to_string(std::vector<Segment> segs);
+
+    // 方便在alogrithm.cpp中调用
+    std::vector<std::vector<std::vector<int>>> _map_grid;
+    int _cell_size_x;
+    int _cell_size_y;
+    int _cell_size_z;
 };
 
 // * 依据自己的设计添加所需的类，下面举例说明一些常用功能类

@@ -90,6 +90,45 @@ int main(int argc, const char* argv[]) {
     alg->set_planner(planner);
     LOG(INFO) << "An instance of contestant's algorihtm class is created. ";
 
+    // 通过map计算map_grid
+    float min_x, min_y, min_z, max_x, max_y, max_z;
+    int cell_size_x = 20;
+    int cell_size_y = 20;
+    int cell_size_z = 50;
+    map->Range(&min_x, &max_x, &min_y, &max_y, &min_z, &max_z);
+    std::vector<std::vector<std::vector<int>>> map_grid(
+        (int)((max_x - min_x) / cell_size_x), std::vector<std::vector<int>>(
+            (int)((max_y - min_y) / cell_size_y), std::vector<int>(
+                (int)((max_z - min_z) / cell_size_z), 0
+            )
+        )
+    );
+    LOG(INFO) << "开始计算网格...";
+    for (int x = 0; x < map_grid.size(); x++) {
+        for (int y = 0; y < map_grid[x].size(); y++) {
+            for (int z = 0; z < map_grid[x][y].size(); z++) {
+                float mid_x, mid_y, mid_z; // 每个cell的中心点坐标
+                mid_x = x * cell_size_x + 0.5 * cell_size_x;
+                mid_y = y * cell_size_y + 0.5 * cell_size_y;
+                mid_z = z * cell_size_z + 0.5 * cell_size_z;
+                const Voxel* voxel = map->Query(mid_x, mid_y, mid_z);
+                if (voxel != nullptr) {
+                    if (voxel->distance >= 0.5 * cell_size_x) {
+                        map_grid[x][y][z] = 0; // 无障碍物
+                    } else {
+                        map_grid[x][y][z] = 1; // 有障碍物
+                    }
+                }
+            }
+        }
+    }
+    alg->_map_grid = std::move(map_grid); // 减少开销，相当于引用
+    alg->_cell_size_x = cell_size_x;
+    alg->_cell_size_y = cell_size_y;
+    alg->_cell_size_z = cell_size_z;
+    LOG(INFO) << "网格计算完毕...";
+
+
     // 启动对应的比赛任务
     auto r2 = planner->StartTask(task_idx);
     if (r2.success == false) {
