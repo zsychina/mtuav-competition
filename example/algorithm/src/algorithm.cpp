@@ -3,6 +3,7 @@
 #include "algorihtm.h"  // 选手自行设计的算法头文件
 #include "math.h"
 #include "hungarian.h"
+#include "AStar.hpp"
 
 void show_2dv(const std::vector<std::vector<double>>& mat) {
     for (const auto& row : mat) {
@@ -58,10 +59,10 @@ void Algorithm::set_planner(std::shared_ptr<Planner> input_planner) {
 /*
 TODO
 - ✅ 使用匈牙利算法指派空载无人机和订单
+- ✅ 使用A*算法做无人机路径规划
 - 无人机之间防撞
 - 例程的充电算法对无人机是否携带货物并无判断，可能会使送货超时
 - 对于飞行中的无人机，也要决策，是保持既有轨迹还是临时去做别的（充电或轨迹附近突然有订单等）
-- 轨迹规划需考虑地图，或可构造有符号距离场
 - 取送货策略：可以取一个货送一个货（例程），也可以先取多个货统一送（邮差问题？），具体考虑订单时空分布
 - 算法调用间隔可根据性能优化（？）
 - 通过订单剩余时间来改变订单的权重（可否通过按一定比例缩短与各个无人机的距离来实现？）
@@ -333,12 +334,69 @@ int64_t myAlgorithm::solve() {
     return sleep_time_ms;
 }
 
+// 移除n点连线中间的n-2个点
+AStar::CoordinateList remove_middle_points(AStar::CoordinateList& path) {
+    AStar::CoordinateList result;
+    if (path.size() <= 2) {
+        return path;
+    }
+    result.push_back(path[0]);
+    for (int i = 1; i < path.size(); i++) {
+        AStar::Vec2i coordinate1 = path[i - 1];
+        AStar::Vec2i coordinate2 = path[i];
+        AStar::Vec2i coordinate3 = path[i + 1];
+        if (
+            (coordinate2.y - coordinate1.y) * (coordinate3.x - coordinate2.x) ==
+            (coordinate3.y - coordinate2.y) * (coordinate2.x - coordinate1.x)
+        ) {
+            continue;
+        }
+        result.push_back(coordinate2);
+    }
+
+    result.push_back(path.back());
+
+    return result;
+}
+
 // waypoints_generation(简单，无额外奖励) 和 trajectory_generation(复杂，有额外奖励) 二选一即可
 std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3 start, Vec3 end) {
     // TODO 参赛选手需要自行设计算法，生成对应的waypoint
     std::vector<Segment> waypoints;
-    // 获取地图信息
-    // this->_map; 调用打印
+
+    int grid_n_x = this->_map_grid.size();
+    int grid_n_y = this->_map_grid[0].size();
+    int grid_n_z = this->_map_grid[0][0].size();
+
+    AStar::Generator generator;
+    generator.setWorldSize({grid_n_x, grid_n_y}); // 跟map_grid的大小一样
+    generator.setHeuristic(AStar::Heuristic::euclidean);
+    generator.setDiagonalMovement(true);
+
+    for (int x = 0; x < grid_n_x; x++) {
+        for (int y = 0; y < grid_n_y; y++) {
+            if (this->_map_grid[x][y][5] == 1) { // 暂设z=5
+                generator.addCollision({x, y});
+            }
+        }
+    }
+
+    LOG(INFO) << "开始计算路径点..."；
+    int start_grid_x = (int)(start.x / this->_cell_size_x);
+    int start_grid_y = (int)(start.y / this->_cell_size_y);
+    int end_grid_x = (int)(end.x / this->_cell_size_x);
+    int end_grid_y = (int)(end.y / this->_cell_size_y); 
+    auto path = generator.findPath({start_grid_x, start_grid_y}, {end_grid_x, end_grid_y});
+    std::reverse(path.begin(), path.end());
+    // 移除n点连线中间的n-2个点
+    auto path_remove_middle = remove_middle_points(path);
+    for (auto& coordinate : path_remove_middle) {
+        LOG(INFO) << coordinate.x << " " << coordinate.y;
+    }
+    LOG(INFO) << "路径点计算完毕...";
+
+
+
 
     // 定义4个轨迹点
     Segment p1, p2;  // p1 起点， p2, 起点上方高度120米
