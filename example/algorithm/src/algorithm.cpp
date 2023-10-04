@@ -181,8 +181,8 @@ int64_t myAlgorithm::solve() {
     std::vector<int> assignment;
 
     if (pickup_plan_num > 0) {
-        double cost = HungAlgo.Solve(cost, assignment);
-        LOG(INFO) << "Total cost: " << cost;
+        double tot_cost = HungAlgo.Solve(cost, assignment);
+        LOG(INFO) << "Total cost: " << tot_cost;
         for (int x = 0; x < pickup_plan_num; x++) {
             LOG(INFO) << "Drone: " << x << " to pick Cargo: " << assignment[x];
         }
