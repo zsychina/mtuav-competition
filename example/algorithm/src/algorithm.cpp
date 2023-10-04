@@ -3,7 +3,7 @@
 #include "algorihtm.h"  // 选手自行设计的算法头文件
 #include "math.h"
 #include "hungarian.h"
-#include "AStar.hpp"
+#include "AStar.h"
 
 void show_2dv(const std::vector<std::vector<double>>& mat) {
     for (const auto& row : mat) {
@@ -15,6 +15,30 @@ void show_2dv(const std::vector<std::vector<double>>& mat) {
     std::cout << std::endl;
 }
 
+// 移除n点连线中间的n-2个点
+AStar::CoordinateList remove_middle_points(AStar::CoordinateList& path) {
+    AStar::CoordinateList result;
+    if (path.size() <= 2) {
+        return path;
+    }
+    result.push_back(path[0]);
+    for (int i = 1; i < path.size(); i++) {
+        AStar::Vec2i coordinate1 = path[i - 1];
+        AStar::Vec2i coordinate2 = path[i];
+        AStar::Vec2i coordinate3 = path[i + 1];
+        if (
+            (coordinate2.y - coordinate1.y) * (coordinate3.x - coordinate2.x) ==
+            (coordinate3.y - coordinate2.y) * (coordinate2.x - coordinate1.x)
+        ) {
+            continue;
+        }
+        result.push_back(coordinate2);
+    }
+
+    result.push_back(path.back());
+
+    return result;
+}
 
 namespace mtuav::algorithm {
 // 算法基类Algorithm函数实现
@@ -202,14 +226,14 @@ int64_t myAlgorithm::solve() {
 
         FlightPlan pickup;
         // TODO 参赛选手需要自己实现一个轨迹生成函数或中转点生成函数
-        auto [pickup_waypoints, pickup_flight_time] = this->trajectory_generation(
-            the_drone.position, the_cargo.position, the_drone);  //此处使用轨迹生成函数
-        // auto [pickup_waypoints, pickup_flight_time] = this->waypoints_generation(
-        //     the_drone.position, the_cargo.position);  //此处使用中转点生成函数
+        // auto [pickup_waypoints, pickup_flight_time] = this->trajectory_generation(
+        //     the_drone.position, the_cargo.position, the_drone);  //此处使用轨迹生成函数
+        auto [pickup_waypoints, pickup_flight_time] = this->waypoints_generation(
+            the_drone.position, the_cargo.position);  //此处使用中转点生成函数
         pickup.target_cargo_ids.push_back(the_cargo.id);
         pickup.flight_purpose = FlightPurpose::FLIGHT_TAKE_CARGOS;  // 飞行计划目标
-        // pickup.flight_plan_type = FlightPlanType::PLAN_WAY_POINTS;  // 飞行计划类型：中转点
-        pickup.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;  // 飞行计划类型：轨迹
+        pickup.flight_plan_type = FlightPlanType::PLAN_WAY_POINTS;  // 飞行计划类型：中转点
+        // pickup.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;  // 飞行计划类型：轨迹
         pickup.flight_id = std::to_string(++Algorithm::flightplan_num);
         pickup.takeoff_timestamp = current_time;  // 立刻起飞
         pickup.segments = pickup_waypoints;
@@ -334,30 +358,6 @@ int64_t myAlgorithm::solve() {
     return sleep_time_ms;
 }
 
-// 移除n点连线中间的n-2个点
-AStar::CoordinateList remove_middle_points(AStar::CoordinateList& path) {
-    AStar::CoordinateList result;
-    if (path.size() <= 2) {
-        return path;
-    }
-    result.push_back(path[0]);
-    for (int i = 1; i < path.size(); i++) {
-        AStar::Vec2i coordinate1 = path[i - 1];
-        AStar::Vec2i coordinate2 = path[i];
-        AStar::Vec2i coordinate3 = path[i + 1];
-        if (
-            (coordinate2.y - coordinate1.y) * (coordinate3.x - coordinate2.x) ==
-            (coordinate3.y - coordinate2.y) * (coordinate2.x - coordinate1.x)
-        ) {
-            continue;
-        }
-        result.push_back(coordinate2);
-    }
-
-    result.push_back(path.back());
-
-    return result;
-}
 
 // waypoints_generation(简单，无额外奖励) 和 trajectory_generation(复杂，有额外奖励) 二选一即可
 std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3 start, Vec3 end) {
@@ -375,13 +375,13 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
 
     for (int x = 0; x < grid_n_x; x++) {
         for (int y = 0; y < grid_n_y; y++) {
-            if (this->_map_grid[x][y][5] == 1) { // 暂设z=5
+            if (this->_map_grid[x][y][7] == 1) { // 暂设z=7
                 generator.addCollision({x, y});
             }
         }
     }
 
-    LOG(INFO) << "开始计算路径点..."；
+    LOG(INFO) << "开始计算路径点...";
     int start_grid_x = (int)(start.x / this->_cell_size_x);
     int start_grid_y = (int)(start.y / this->_cell_size_y);
     int end_grid_x = (int)(end.x / this->_cell_size_x);
@@ -390,6 +390,11 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     std::reverse(path.begin(), path.end());
     // 移除n点连线中间的n-2个点
     auto path_remove_middle = remove_middle_points(path);
+    LOG(INFO) << "原轨迹点：";
+    for (auto& coordinate : path) {
+        LOG(INFO) << coordinate.x << " " << coordinate.y;
+    }
+    LOG(INFO) << "去除之后的轨迹点：";
     for (auto& coordinate : path_remove_middle) {
         LOG(INFO) << coordinate.x << " " << coordinate.y;
     }

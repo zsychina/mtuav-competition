@@ -92,9 +92,9 @@ int main(int argc, const char* argv[]) {
 
     // 通过map计算map_grid
     float min_x, min_y, min_z, max_x, max_y, max_z;
-    int cell_size_x = 10;
-    int cell_size_y = 10;
-    int cell_size_z = 10;
+    int cell_size_x = 20;
+    int cell_size_y = 20;
+    int cell_size_z = 20;
     map->Range(&min_x, &max_x, &min_y, &max_y, &min_z, &max_z);
     std::vector<std::vector<std::vector<int>>> map_grid(
         (int)((max_x - min_x) / cell_size_x), std::vector<std::vector<int>>(
