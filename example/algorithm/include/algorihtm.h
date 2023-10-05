@@ -52,6 +52,10 @@ class Algorithm {
 // 参赛选手需要自定义求解算法，可集成自Algorithm基类从而获取到问题信息
 class myAlgorithm : public Algorithm {
    public:
+    myAlgorithm() : _altitude_drone_count(5, 0) {
+        
+    }
+
     // 需要实现自己的求解函数，从而生成飞行计划
     // solve函数中求解当前环境下算法输出，并传递给仿真系统
     int64_t solve();
@@ -70,7 +74,7 @@ class myAlgorithm : public Algorithm {
     int _cell_size_y;
     int _cell_size_z;
     // 记录100 110 120 130 140的高度上航线的数量
-    std::vector<int> _altitude_drone_count(5, 0);
+    std::vector<int> _altitude_drone_count;
 };
 
 // * 依据自己的设计添加所需的类，下面举例说明一些常用功能类

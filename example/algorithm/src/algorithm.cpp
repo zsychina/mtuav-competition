@@ -399,10 +399,10 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     std::reverse(path.begin(), path.end());
     // 移除n点连线中间的n-2个点
     auto path_remove_middle = remove_middle_points(path);
-    LOG(INFO) << "原轨迹点：";
-    for (auto& coordinate : path) {
-        LOG(INFO) << coordinate.x << " " << coordinate.y;
-    }
+    // LOG(INFO) << "原轨迹点：";
+    // for (auto& coordinate : path) {
+    //     LOG(INFO) << coordinate.x << " " << coordinate.y;
+    // }
     LOG(INFO) << "去除之后的轨迹点：";
     for (auto& coordinate : path_remove_middle) {
         LOG(INFO) << coordinate.x << " " << coordinate.y;
@@ -430,6 +430,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
         AStar::Vec2i coordinate = path_remove_middle[i];
         p_air.position.x = coordinate.x * this->_cell_size_x + 0.5 * this->_cell_size_x;
         p_air.position.y = coordinate.y * this->_cell_size_y + 0.5 * this->_cell_size_y;
+        p_air.position.z = altitude;
         // TODO 计算时间
         p_air.time_ms = waypoints[i - 1].time_ms + 10000;
         flight_time += 10000;
@@ -452,36 +453,6 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
 
     waypoints.push_back(p_end_air);
     waypoints.push_back(p_end_land);
-
-    // // 定义4个轨迹点
-    // Segment p1, p2;  // p1 起点， p2, 起点上方高度120米
-    // p1.position = start;
-    // Vec3 p2_pos;
-    // p2_pos.x = start.x;
-    // p2_pos.y = start.y;
-    // p2_pos.z = 120;
-    // p2.position = p2_pos;
-    // p1.time_ms = 0;      // 第一个点的时间设置为0
-    // p2.time_ms = 25000;  // 起飞25秒  表示从上一个点到这点耗时34秒
-    // p1.seg_type = 0;
-    // p2.seg_type = 0;
-    // Segment p3, p4;  // p3 终点上方高度120米，p4 终点
-    // Vec3 p3_pos;
-    // p3_pos.x = end.x;
-    // p3_pos.y = end.y;
-    // p3_pos.z = 120;
-    // p3.position = p3_pos;
-    // p3.time_ms = 120000;  // 平飞120秒
-    // p3.seg_type = 1;
-    // p4.position = end;
-    // p4.time_ms = 25000;  // 降落25秒
-    // p4.seg_type = 2;
-
-    // // 轨迹点存入trajectory中
-    // // waypoints.push_back(p1);
-    // waypoints.push_back(p2);
-    // waypoints.push_back(p3);
-    // waypoints.push_back(p4);
 
     return {waypoints, flight_time};
 }
