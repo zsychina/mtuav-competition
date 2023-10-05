@@ -364,6 +364,15 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     // TODO 参赛选手需要自行设计算法，生成对应的waypoint
     std::vector<Segment> waypoints;
 
+    int64_t flight_time = 0;
+
+    // 计算待规划航线的高度
+    auto min_element = std::min_element(this->_altitude_drone_count.begin(), this->_altitude_drone_count.end());
+    int min_index = std::distance(this->_altitude_drone_count.begin(), min_element);
+    this->_altitude_drone_count[min_index] += 1;
+    int altitude_bias = (min_index - 2) * 10;
+    int altitude = 120 + altitude_bias;
+
     int grid_n_x = this->_map_grid.size();
     int grid_n_y = this->_map_grid[0].size();
     int grid_n_z = this->_map_grid[0][0].size();
@@ -375,7 +384,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
 
     for (int x = 0; x < grid_n_x; x++) {
         for (int y = 0; y < grid_n_y; y++) {
-            if (this->_map_grid[x][y][7] == 1) { // 暂设z=7
+            if (this->_map_grid[x][y][(int)(altitude / this->_cell_size_z)] == 1) {
                 generator.addCollision({x, y});
             }
         }
@@ -400,41 +409,80 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     }
     LOG(INFO) << "路径点计算完毕...";
 
+    Segment p_start_land, p_start_air;
+    p_start_land.position = start;
+    p_start_air.position.x = start.x;
+    p_start_air.position.y = start.y;
+    p_start_air.position.z = altitude;
 
+    p_start_land.time_ms = 0;
+    p_start_air.time_ms = 25000;
 
+    p_start_land.seg_type = 0;
+    p_start_air.seg_type = 0;
 
-    // 定义4个轨迹点
-    Segment p1, p2;  // p1 起点， p2, 起点上方高度120米
-    p1.position = start;
-    Vec3 p2_pos;
-    p2_pos.x = start.x;
-    p2_pos.y = start.y;
-    p2_pos.z = 120;
-    p2.position = p2_pos;
-    p1.time_ms = 0;      // 第一个点的时间设置为0
-    p2.time_ms = 25000;  // 起飞25秒  表示从上一个点到这点耗时34秒
-    p1.seg_type = 0;
-    p2.seg_type = 0;
-    Segment p3, p4;  // p3 终点上方高度120米，p4 终点
-    Vec3 p3_pos;
-    p3_pos.x = end.x;
-    p3_pos.y = end.y;
-    p3_pos.z = 120;
-    p3.position = p3_pos;
-    p3.time_ms = 120000;  // 平飞120秒
-    p3.seg_type = 1;
-    p4.position = end;
-    p4.time_ms = 25000;  // 降落25秒
-    p4.seg_type = 2;
+    flight_time += 25000;
+    waypoints.push_back(p_start_air);
 
-    // 轨迹点存入trajectory中
-    // waypoints.push_back(p1);
-    waypoints.push_back(p2);
-    waypoints.push_back(p3);
-    waypoints.push_back(p4);
+    // 掐头去尾
+    for (int i = 1; i < path_remove_middle.size() - 1; i++) {
+        Segment p_air;
+        AStar::Vec2i coordinate = path_remove_middle[i];
+        p_air.position.x = coordinate.x * this->_cell_size_x + 0.5 * this->_cell_size_x;
+        p_air.position.y = coordinate.y * this->_cell_size_y + 0.5 * this->_cell_size_y;
+        // TODO 计算时间
+        p_air.time_ms = waypoints[i - 1].time_ms + 10000;
+        flight_time += 10000;
+        p_air.seg_type = 1;
+        waypoints.push_back(p_air);
+    }
 
-    // 计算总时间
-    int64_t flight_time = (35000 + 200000 + 35000);  // 单位毫秒；
+    Segment p_end_air, p_end_land;
+    p_end_air.position.x = end.x;
+    p_end_air.position.y = end.y;
+    p_end_air.position.z = altitude;
+    p_end_land.position = end;
+
+    p_end_air.time_ms = waypoints.back().time_ms + 10000;
+    p_end_land.time_ms = p_end_air.time_ms + 25000;
+    flight_time += 35000;
+
+    p_end_air.seg_type = 1;
+    p_end_land.seg_type = 2;
+
+    waypoints.push_back(p_end_air);
+    waypoints.push_back(p_end_land);
+
+    // // 定义4个轨迹点
+    // Segment p1, p2;  // p1 起点， p2, 起点上方高度120米
+    // p1.position = start;
+    // Vec3 p2_pos;
+    // p2_pos.x = start.x;
+    // p2_pos.y = start.y;
+    // p2_pos.z = 120;
+    // p2.position = p2_pos;
+    // p1.time_ms = 0;      // 第一个点的时间设置为0
+    // p2.time_ms = 25000;  // 起飞25秒  表示从上一个点到这点耗时34秒
+    // p1.seg_type = 0;
+    // p2.seg_type = 0;
+    // Segment p3, p4;  // p3 终点上方高度120米，p4 终点
+    // Vec3 p3_pos;
+    // p3_pos.x = end.x;
+    // p3_pos.y = end.y;
+    // p3_pos.z = 120;
+    // p3.position = p3_pos;
+    // p3.time_ms = 120000;  // 平飞120秒
+    // p3.seg_type = 1;
+    // p4.position = end;
+    // p4.time_ms = 25000;  // 降落25秒
+    // p4.seg_type = 2;
+
+    // // 轨迹点存入trajectory中
+    // // waypoints.push_back(p1);
+    // waypoints.push_back(p2);
+    // waypoints.push_back(p3);
+    // waypoints.push_back(p4);
+
     return {waypoints, flight_time};
 }
 

@@ -69,6 +69,8 @@ class myAlgorithm : public Algorithm {
     int _cell_size_x;
     int _cell_size_y;
     int _cell_size_z;
+    // 记录100 110 120 130 140的高度上航线的数量
+    std::vector<int> _altitude_drone_count(5, 0);
 };
 
 // * 依据自己的设计添加所需的类，下面举例说明一些常用功能类

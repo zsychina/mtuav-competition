@@ -126,7 +126,7 @@ int main(int argc, const char* argv[]) {
                 mid_z = z * cell_size_z + 0.5 * cell_size_z;
                 const Voxel* voxel = map->Query(mid_x, mid_y, mid_z);
                 if (voxel != nullptr) {
-                    if (voxel->distance >= 0.5 * cell_size_x) {
+                    if (voxel->distance > 0.5 * cell_size_x) {
                         map_grid[x][y][z] = 0; // 无障碍物
                         // int pass_x_n = (voxel->distance - 0.5 * cell_size_x) / cell_size_x;
                         // int pass_y_n = (voxel->distance - 0.5 * cell_size_y) / cell_size_y;
