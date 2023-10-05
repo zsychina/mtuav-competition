@@ -226,14 +226,14 @@ int64_t myAlgorithm::solve() {
 
         FlightPlan pickup;
         // TODO 参赛选手需要自己实现一个轨迹生成函数或中转点生成函数
-        // auto [pickup_waypoints, pickup_flight_time] = this->trajectory_generation(
-        //     the_drone.position, the_cargo.position, the_drone);  //此处使用轨迹生成函数
-        auto [pickup_waypoints, pickup_flight_time] = this->waypoints_generation(
-            the_drone.position, the_cargo.position);  //此处使用中转点生成函数
+        auto [pickup_waypoints, pickup_flight_time] = this->my_trajectory_generation(
+            the_drone.position, the_cargo.position, the_drone);  //此处使用轨迹生成函数
+        // auto [pickup_waypoints, pickup_flight_time] = this->waypoints_generation(
+        //     the_drone.position, the_cargo.position);  //此处使用中转点生成函数
         pickup.target_cargo_ids.push_back(the_cargo.id);
         pickup.flight_purpose = FlightPurpose::FLIGHT_TAKE_CARGOS;  // 飞行计划目标
-        pickup.flight_plan_type = FlightPlanType::PLAN_WAY_POINTS;  // 飞行计划类型：中转点
-        // pickup.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;  // 飞行计划类型：轨迹
+        // pickup.flight_plan_type = FlightPlanType::PLAN_WAY_POINTS;  // 飞行计划类型：中转点
+        pickup.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;  // 飞行计划类型：轨迹
         pickup.flight_id = std::to_string(++Algorithm::flightplan_num);
         pickup.takeoff_timestamp = current_time;  // 立刻起飞
         pickup.segments = pickup_waypoints;
@@ -313,7 +313,7 @@ int64_t myAlgorithm::solve() {
             FlightPlan delivery;
             auto [delivery_traj, delivery_flight_time] = this->trajectory_generation(
                 the_drone.position, the_cargo.target_position, the_drone);
-            if (delivery_flight_time = -1) {
+            if (delivery_flight_time == -1) {
                 // 轨迹生成失败
                 LOG(INFO) << "trajectory generation failed. ";
                 break;
@@ -456,6 +456,138 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
 
     return {waypoints, flight_time};
 }
+
+std::tuple<std::vector<Segment>, int64_t> myAlgorithm::my_trajectory_generation(Vec3 start, Vec3 end,
+                                                                                DroneStatus drone) {
+    // 计算待规划航线的高度
+    auto min_element = std::min_element(this->_altitude_drone_count.begin(), this->_altitude_drone_count.end());
+    int min_index = std::distance(this->_altitude_drone_count.begin(), min_element);
+    int altitude_bias = (min_index - 2) * 10;
+    int altitude = 120 + altitude_bias;
+
+    int grid_n_x = this->_map_grid.size();
+    int grid_n_y = this->_map_grid[0].size();
+    int grid_n_z = this->_map_grid[0][0].size();
+
+    // A*算法
+    AStar::Generator generator;
+    generator.setWorldSize({grid_n_x, grid_n_y}); // 跟map_grid的大小一样
+    generator.setHeuristic(AStar::Heuristic::euclidean);
+    generator.setDiagonalMovement(true);
+
+    for (int x = 0; x < grid_n_x; x++) {
+        for (int y = 0; y < grid_n_y; y++) {
+            if (this->_map_grid[x][y][(int)(altitude / this->_cell_size_z)] == 1) {
+                generator.addCollision({x, y});
+            }
+        }
+    }
+
+    LOG(INFO) << "开始计算路径点...";
+    int start_grid_x = (int)(start.x / this->_cell_size_x);
+    int start_grid_y = (int)(start.y / this->_cell_size_y);
+    int end_grid_x = (int)(end.x / this->_cell_size_x);
+    int end_grid_y = (int)(end.y / this->_cell_size_y); 
+    auto path = generator.findPath({start_grid_x, start_grid_y}, {end_grid_x, end_grid_y});
+    std::reverse(path.begin(), path.end());
+    // 移除n点连线中间的n-2个点
+    auto path_remove_middle = remove_middle_points(path);
+    // LOG(INFO) << "原轨迹点：";
+    // for (auto& coordinate : path) {
+    //     LOG(INFO) << coordinate.x << " " << coordinate.y;
+    // }
+    LOG(INFO) << "去除之后的轨迹点：";
+    for (auto& coordinate : path_remove_middle) {
+        LOG(INFO) << coordinate.x << " " << coordinate.y;
+    }
+    LOG(INFO) << "路径点计算完毕...";
+
+    std::vector<Segment> traj_segs;
+    int64_t flight_time;
+    TrajectoryGeneration tg;
+    DroneLimits dl = this->_task_info->drones.front().drone_limits;
+
+    Segment p_start_land, p_start_air;
+    p_start_land.position = start;
+    p_start_air.position.x = start.x;
+    p_start_air.position.y = start.y;
+    p_start_air.position.z = altitude;
+    p_start_land.seg_type = 0;
+    p_start_air.seg_type = 0;
+
+    Segment p_end_air, p_end_land;
+    p_end_air.position.x = end.x;
+    p_end_air.position.y = end.y;
+    p_end_air.position.z = altitude;
+    p_end_land.position = end;
+    p_end_air.seg_type = 1;
+    p_end_land.seg_type = 2;
+
+    // 生成起飞轨迹
+    std::vector<Segment> takeoff_segs;
+    bool success_takeoff = tg.generate_traj_from_waypoints({p_start_land.position, p_start_air.position}, dl, 0, takeoff_segs);
+    if (success_takeoff == false) {
+        LOG(INFO) << "生成起飞轨迹失败！";
+        return {std::vector<mtuav::Segment>{}, -1};
+    }
+    int64_t takeoff_flight_time = takeoff_segs.back().time_ms;
+
+    // 生成飞行轨迹
+    std::vector<Vec3> flying_points;
+    flying_points.push_back(p_start_air.position);
+    for (int i = 1; i < path_remove_middle.size() - 1; i++) {
+        Vec3 point;
+        AStar::Vec2i coordinate = path_remove_middle[i];
+        point.x = coordinate.x * this->_cell_size_x + 0.5 * this->_cell_size_x;
+        point.y = coordinate.y * this->_cell_size_y + 0.5 * this->_cell_size_y;
+        point.z = altitude;
+        flying_points.push_back(point);
+    }
+    flying_points.push_back(p_end_air.position);
+    std::vector<Segment> flying_segs;
+    bool success_flying = tg.generate_traj_from_waypoints(flying_points, dl, 1, flying_segs);
+    if (success_flying == false) {
+        LOG(INFO) << "生成飞行轨迹失败！";
+        return {std::vector<mtuav::Segment>{}, -1};
+    }    
+    int64_t flying_flight_time = flying_segs.back().time_ms;
+
+    // 生成降落轨迹
+    std::vector<Segment> landing_segs;
+    bool success_landing = tg.generate_traj_from_waypoints({p_end_air.position, p_end_land.position}, dl, 2, landing_segs);
+    if (success_landing == false) {
+        LOG(INFO) << "生成降落轨迹失败！";
+        return {std::vector<mtuav::Segment>{}, -1};
+    }
+    int64_t landing_flight_time = landing_segs.back().time_ms;
+
+    this->_altitude_drone_count[min_index] += 1;
+
+    // 合并
+
+    int64_t takeoff_last_time = takeoff_segs.back().time_ms;
+    auto pflying_segs_first = flying_segs.begin();
+    flying_segs.earse(pflying_segs_first);
+    for (int i = 0; i < flying_segs.size(); i++) {
+        flying_segs[i].time_ms += takeoff_last_time;
+    }
+
+    int64_t flying_last_time = flying_segs.back().time_ms;
+    auto planding_segs_first.begin();
+    landing_segs.erase(planding_segs_first);
+    for (int i = 0; i < landing_segs.size(); i++) {
+        landing_segs[i].time_ms += flying_last_time;
+    }
+
+    traj_segs.insert(traj_segs.end(), takeoff_segs.begin(), takeoff_segs.end());
+    traj_segs.insert(traj_segs.end(), flying_segs.begin(), flying_segs.end());
+    traj_segs.insert(traj_segs.end(), landing_segs.begin(), landing_segs.end());
+
+    flight_time = takeoff_flight_time + flying_flight_time + landing_flight_time;
+    return {traj_segs, flight_time};
+}
+
+
 
 // waypoints_generation(简单，无额外奖励) 和 trajectory_generation(复杂，有额外奖励) 二选一即可
 std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec3 start, Vec3 end,
