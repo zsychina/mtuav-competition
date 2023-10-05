@@ -226,7 +226,7 @@ int64_t myAlgorithm::solve() {
 
         FlightPlan pickup;
         // TODO 参赛选手需要自己实现一个轨迹生成函数或中转点生成函数
-        auto [pickup_waypoints, pickup_flight_time] = this->my_trajectory_generation(
+        auto [pickup_waypoints, pickup_flight_time] = this->trajectory_generation(
             the_drone.position, the_cargo.position, the_drone);  //此处使用轨迹生成函数
         // auto [pickup_waypoints, pickup_flight_time] = this->waypoints_generation(
         //     the_drone.position, the_cargo.position);  //此处使用中转点生成函数
@@ -457,7 +457,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     return {waypoints, flight_time};
 }
 
-std::tuple<std::vector<Segment>, int64_t> myAlgorithm::my_trajectory_generation(Vec3 start, Vec3 end,
+std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec3 start, Vec3 end,
                                                                                 DroneStatus drone) {
     // 计算待规划航线的高度
     auto min_element = std::min_element(this->_altitude_drone_count.begin(), this->_altitude_drone_count.end());
@@ -567,13 +567,13 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::my_trajectory_generation(
 
     int64_t takeoff_last_time = takeoff_segs.back().time_ms;
     auto pflying_segs_first = flying_segs.begin();
-    flying_segs.earse(pflying_segs_first);
+    flying_segs.erase(pflying_segs_first);
     for (int i = 0; i < flying_segs.size(); i++) {
         flying_segs[i].time_ms += takeoff_last_time;
     }
 
     int64_t flying_last_time = flying_segs.back().time_ms;
-    auto planding_segs_first.begin();
+    auto planding_segs_first = landing_segs.begin();
     landing_segs.erase(planding_segs_first);
     for (int i = 0; i < landing_segs.size(); i++) {
         landing_segs[i].time_ms += flying_last_time;
@@ -589,124 +589,124 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::my_trajectory_generation(
 
 
 
-// waypoints_generation(简单，无额外奖励) 和 trajectory_generation(复杂，有额外奖励) 二选一即可
-std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec3 start, Vec3 end,
-                                                                             DroneStatus drone) {
-    std::vector<Segment> traj_segs;
-    int64_t flight_time;
-    // TODO 选手需要自行设计
-    // 获取地图信息
-    // this->_map;
-    TrajectoryGeneration tg;  // 引用example中的轨迹生成算法
-    // 定义四个轨迹点
-    Segment p1, p2;
-    Vec3 p1_pos, p2_pos;
-    p1_pos.x = start.x;
-    p1_pos.y = start.y;
-    p1_pos.z = start.z;
-    p1.position = p1_pos;
+// // waypoints_generation(简单，无额外奖励) 和 trajectory_generation(复杂，有额外奖励) 二选一即可
+// std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec3 start, Vec3 end,
+//                                                                              DroneStatus drone) {
+//     std::vector<Segment> traj_segs;
+//     int64_t flight_time;
+//     // TODO 选手需要自行设计
+//     // 获取地图信息
+//     // this->_map;
+//     TrajectoryGeneration tg;  // 引用example中的轨迹生成算法
+//     // 定义四个轨迹点
+//     Segment p1, p2;
+//     Vec3 p1_pos, p2_pos;
+//     p1_pos.x = start.x;
+//     p1_pos.y = start.y;
+//     p1_pos.z = start.z;
+//     p1.position = p1_pos;
 
-    p2_pos.x = start.x;
-    p2_pos.y = start.y;
-    p2_pos.z = 120;
-    p2.position = p2_pos;
+//     p2_pos.x = start.x;
+//     p2_pos.y = start.y;
+//     p2_pos.z = 120;
+//     p2.position = p2_pos;
 
-    p1.seg_type = 0;
-    p2.seg_type = 0;
-    Segment p3, p4;  // p3 终点上方高度120米，p4 终点
-    Vec3 p3_pos;
-    p3_pos.x = end.x;
-    p3_pos.y = end.y;
-    p3_pos.z = 120;
-    p3.position = p3_pos;
-    p3.seg_type = 1;
-    p4.position = end;
-    p4.seg_type = 2;
+//     p1.seg_type = 0;
+//     p2.seg_type = 0;
+//     Segment p3, p4;  // p3 终点上方高度120米，p4 终点
+//     Vec3 p3_pos;
+//     p3_pos.x = end.x;
+//     p3_pos.y = end.y;
+//     p3_pos.z = 120;
+//     p3.position = p3_pos;
+//     p3.seg_type = 1;
+//     p4.position = end;
+//     p4.seg_type = 2;
 
-    // 获取无人机的性能指标
-    // 此处假设所有无人机均为同型号
-    DroneLimits dl = this->_task_info->drones.front().drone_limits;
+//     // 获取无人机的性能指标
+//     // 此处假设所有无人机均为同型号
+//     DroneLimits dl = this->_task_info->drones.front().drone_limits;
 
-    // 生成p1->p2段轨迹点
-    std::vector<mtuav::Segment> p1top2_segs;
-    bool success_1 =
-        tg.generate_traj_from_waypoints({p1.position, p2.position}, dl, 0, p1top2_segs);
-    LOG(INFO) << "p1top2 traj gen: " << std::boolalpha << success_1;
-    if (success_1 == false) {
-        return {std::vector<mtuav::Segment>{}, -1};
-    }
-    int64_t p1top2_flight_time = p1top2_segs.back().time_ms;  // p1->p2飞行时间
-    // 生成p2->p3段轨迹点
-    std::vector<mtuav::Segment> p2top3_segs;
-    bool success_2 =
-        tg.generate_traj_from_waypoints({p2.position, p3.position}, dl, 1, p2top3_segs);
-    LOG(INFO) << "p2top3 traj gen: " << std::boolalpha << success_2;
-    if (success_2 == false) {
-        return {std::vector<mtuav::Segment>{}, -1};
-    }
-    int64_t p2top3_flight_time = p2top3_segs.back().time_ms;  // p2->p3飞行时间
+//     // 生成p1->p2段轨迹点
+//     std::vector<mtuav::Segment> p1top2_segs;
+//     bool success_1 =
+//         tg.generate_traj_from_waypoints({p1.position, p2.position}, dl, 0, p1top2_segs);
+//     LOG(INFO) << "p1top2 traj gen: " << std::boolalpha << success_1;
+//     if (success_1 == false) {
+//         return {std::vector<mtuav::Segment>{}, -1};
+//     }
+//     int64_t p1top2_flight_time = p1top2_segs.back().time_ms;  // p1->p2飞行时间
+//     // 生成p2->p3段轨迹点
+//     std::vector<mtuav::Segment> p2top3_segs;
+//     bool success_2 =
+//         tg.generate_traj_from_waypoints({p2.position, p3.position}, dl, 1, p2top3_segs);
+//     LOG(INFO) << "p2top3 traj gen: " << std::boolalpha << success_2;
+//     if (success_2 == false) {
+//         return {std::vector<mtuav::Segment>{}, -1};
+//     }
+//     int64_t p2top3_flight_time = p2top3_segs.back().time_ms;  // p2->p3飞行时间
 
-    // 生成p3->p4段轨迹点
-    std::vector<mtuav::Segment> p3top4_segs;
-    bool success_3 =
-        tg.generate_traj_from_waypoints({p3.position, p4.position}, dl, 2, p3top4_segs);
-    LOG(INFO) << "p3top4 traj gen: " << std::boolalpha << success_3;
-    if (success_3 == false) {
-        return {std::vector<mtuav::Segment>{}, -1};
-    }
-    int64_t p3top4_flight_time = p3top4_segs.back().time_ms;  // p3->p4飞行时间
+//     // 生成p3->p4段轨迹点
+//     std::vector<mtuav::Segment> p3top4_segs;
+//     bool success_3 =
+//         tg.generate_traj_from_waypoints({p3.position, p4.position}, dl, 2, p3top4_segs);
+//     LOG(INFO) << "p3top4 traj gen: " << std::boolalpha << success_3;
+//     if (success_3 == false) {
+//         return {std::vector<mtuav::Segment>{}, -1};
+//     }
+//     int64_t p3top4_flight_time = p3top4_segs.back().time_ms;  // p3->p4飞行时间
 
-    // 合并p1->p4多段轨迹
-    // 处理p2->p3段轨 更新轨迹点时间
-    int64_t p1top2_last_time = p1top2_segs.back().time_ms;
-    LOG(INFO) << "p1top2_last_time " << p1top2_last_time;
-    auto first_23 = p2top3_segs.begin();
-    LOG(INFO) << "p1top3_FIRST_time " << first_23->time_ms;
-    p2top3_segs.erase(first_23);
-    LOG(INFO) << "p1top3_second_time " << first_23->time_ms;
-    for (int i = 0; i < p2top3_segs.size(); i++) {
-        p2top3_segs[i].time_ms = p2top3_segs[i].time_ms + p1top2_last_time;
-    }
+//     // 合并p1->p4多段轨迹
+//     // 处理p2->p3段轨 更新轨迹点时间
+//     int64_t p1top2_last_time = p1top2_segs.back().time_ms;
+//     LOG(INFO) << "p1top2_last_time " << p1top2_last_time;
+//     auto first_23 = p2top3_segs.begin();
+//     LOG(INFO) << "p1top3_FIRST_time " << first_23->time_ms;
+//     p2top3_segs.erase(first_23);
+//     LOG(INFO) << "p1top3_second_time " << first_23->time_ms;
+//     for (int i = 0; i < p2top3_segs.size(); i++) {
+//         p2top3_segs[i].time_ms = p2top3_segs[i].time_ms + p1top2_last_time;
+//     }
 
-    // 处理p3->p4段轨 更新轨迹点时间
-    int64_t p2top3_last_time = p2top3_segs.back().time_ms;
-    LOG(INFO) << "p2top3_last_time " << p2top3_last_time;
-    auto first_34 = p3top4_segs.begin();
-    LOG(INFO) << "p1top4_FIRST_time " << first_34->time_ms;
-    p3top4_segs.erase(first_34);
-    LOG(INFO) << "p1top4_FIRST_time " << first_34->time_ms;
-    for (int i = 0; i < p3top4_segs.size(); i++) {
-        p3top4_segs[i].time_ms = p3top4_segs[i].time_ms + p2top3_last_time;
-    }
+//     // 处理p3->p4段轨 更新轨迹点时间
+//     int64_t p2top3_last_time = p2top3_segs.back().time_ms;
+//     LOG(INFO) << "p2top3_last_time " << p2top3_last_time;
+//     auto first_34 = p3top4_segs.begin();
+//     LOG(INFO) << "p1top4_FIRST_time " << first_34->time_ms;
+//     p3top4_segs.erase(first_34);
+//     LOG(INFO) << "p1top4_FIRST_time " << first_34->time_ms;
+//     for (int i = 0; i < p3top4_segs.size(); i++) {
+//         p3top4_segs[i].time_ms = p3top4_segs[i].time_ms + p2top3_last_time;
+//     }
 
-    // 更新轨迹点时间后，合并轨迹
-    std::vector<mtuav::Segment> p1top4_segs;
-    p1top4_segs.insert(p1top4_segs.end(), p1top2_segs.begin(), p1top2_segs.end());
-    p1top4_segs.insert(p1top4_segs.end(), p2top3_segs.begin(), p2top3_segs.end());
-    p1top4_segs.insert(p1top4_segs.end(), p3top4_segs.begin(), p3top4_segs.end());
+//     // 更新轨迹点时间后，合并轨迹
+//     std::vector<mtuav::Segment> p1top4_segs;
+//     p1top4_segs.insert(p1top4_segs.end(), p1top2_segs.begin(), p1top2_segs.end());
+//     p1top4_segs.insert(p1top4_segs.end(), p2top3_segs.begin(), p2top3_segs.end());
+//     p1top4_segs.insert(p1top4_segs.end(), p3top4_segs.begin(), p3top4_segs.end());
 
-    // LOG(INFO) << "combined segs detail: ";
-    // for (auto s : p1top4_segs) {
-    //     LOG(INFO) << "seg, p: " << s.position.x << " " << s.position.y << " " << s.position.z
-    //               << ", time_ms: " << s.time_ms << ", a: " << s.a.x << " " << s.a.y << " " << s.a.z
-    //               << ", v: " << s.v.x << " " << s.v.y << " " << s.v.z << ", type: " << s.seg_type;
-    // }
+//     // LOG(INFO) << "combined segs detail: ";
+//     // for (auto s : p1top4_segs) {
+//     //     LOG(INFO) << "seg, p: " << s.position.x << " " << s.position.y << " " << s.position.z
+//     //               << ", time_ms: " << s.time_ms << ", a: " << s.a.x << " " << s.a.y << " " << s.a.z
+//     //               << ", v: " << s.v.x << " " << s.v.y << " " << s.v.z << ", type: " << s.seg_type;
+//     // }
 
-    // for (size_t i = 1; i < p1top4_segs.size(); ++i)
-    // {
-    //     DroneLimits dl2 = this->_task_info->drones.front().drone_limits;
-    //     LOG(INFO) << "begin check " << std::endl;
-    //     if (!segment_feasible_check(&p1top4_segs[i-1], &p1top4_segs[i], dl2.max_fly_speed_h,
-    //     dl2.max_fly_speed_v, dl2.max_fly_acc_h, dl2.max_fly_acc_v)){
-    //         LOG(INFO) << "\n\n check fail\n" ;
-    //     }
-    // }
+//     // for (size_t i = 1; i < p1top4_segs.size(); ++i)
+//     // {
+//     //     DroneLimits dl2 = this->_task_info->drones.front().drone_limits;
+//     //     LOG(INFO) << "begin check " << std::endl;
+//     //     if (!segment_feasible_check(&p1top4_segs[i-1], &p1top4_segs[i], dl2.max_fly_speed_h,
+//     //     dl2.max_fly_speed_v, dl2.max_fly_acc_h, dl2.max_fly_acc_v)){
+//     //         LOG(INFO) << "\n\n check fail\n" ;
+//     //     }
+//     // }
 
-    // 计算p1->p4时间
-    int64_t p1top4_flight_time = p1top2_flight_time + p2top3_flight_time + p3top4_flight_time;
+//     // 计算p1->p4时间
+//     int64_t p1top4_flight_time = p1top2_flight_time + p2top3_flight_time + p3top4_flight_time;
 
-    return {p1top4_segs, p1top4_flight_time};
-}
+//     return {p1top4_segs, p1top4_flight_time};
+// }
 
 std::string myAlgorithm::segments_to_string(std::vector<Segment> segs) {
     std::string str = "";
