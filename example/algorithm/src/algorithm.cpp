@@ -432,7 +432,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
         p_air.position.y = coordinate.y * this->_cell_size_y + 0.5 * this->_cell_size_y;
         p_air.position.z = altitude;
         // TODO 计算时间
-        p_air.time_ms = waypoints[i - 1].time_ms + 10000;
+        p_air.time_ms = 10000;
         flight_time += 10000;
         p_air.seg_type = 1;
         waypoints.push_back(p_air);
@@ -444,8 +444,8 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     p_end_air.position.z = altitude;
     p_end_land.position = end;
 
-    p_end_air.time_ms = waypoints.back().time_ms + 10000;
-    p_end_land.time_ms = p_end_air.time_ms + 25000;
+    p_end_air.time_ms = 10000;
+    p_end_land.time_ms = 25000;
     flight_time += 35000;
 
     p_end_air.seg_type = 1;
