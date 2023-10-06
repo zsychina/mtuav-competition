@@ -34,10 +34,12 @@ int main(int argc, const char* argv[]) {
     google::InitGoogleLogging("uav_champ_example");
     // 配置本地log路径
     google::SetLogDestination(google::GLOG_INFO,
-                              "/home/siyuan/Desktop/mt_log");
+                              "./mt_log");
     // 配置本地路径读取地图信息
+    // auto map = mtuav::Map::CreateMapFromFile(
+    //     "/home/siyuan/Desktop/mtuav925/map/test_map.bin");
     auto map = mtuav::Map::CreateMapFromFile(
-        "/home/siyuan/Desktop/mtuav925/map/test_map.bin");
+    "../map/test_map.bin");
     // 声明一个planner指针
     std::shared_ptr<Planner> planner = std::make_shared<Planner>(map);
     // LOG 打印是否成功读取地图

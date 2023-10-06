@@ -65,7 +65,7 @@ class myAlgorithm : public Algorithm {
     std::tuple<std::vector<Segment>, int64_t> waypoints_generation(Vec3 start, Vec3 end);
     // 示例：给定起点、终点与无人机，返回无人机trajectory飞行轨迹与飞行时间
     std::tuple<std::vector<Segment>, int64_t> trajectory_generation(Vec3 start, Vec3 end, DroneStatus drone);
-    // std::tuple<std::vector<Segment>, int64_t> my_trajectory_generation(Vec3 start, Vec3 end, DroneStatus drone);
+    std::tuple<std::vector<Segment>, int64_t> trajectory_replan(Vec3 start, Vec3 end, DroneStatus drone);
     // 打印segment的信息
     std::string segments_to_string(std::vector<Segment> segs);
 

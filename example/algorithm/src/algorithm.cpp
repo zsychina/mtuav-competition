@@ -457,6 +457,22 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     return {waypoints, flight_time};
 }
 
+std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 start, Vec3 end, DroneStatus drone) {
+    float current_altitude = drone.position.z;
+    float plan_altitude = current_altitude;
+
+    if (drone.status == Status::FLYING || drone.status == Status::HOVERING) { // 无人机在平飞或悬停中
+        plan_altitude = current_altitude;
+    } else if (drone.status == Status::TAKING_OFF) { // 无人机在起飞中
+        auto min_element = std::min_element(this->_altitude_drone_count.begin(), this->_altitude_drone_count.end());
+        int min_index = std::distance(this->_altitude_drone_count.begin(), min_element);
+        int altitude_bias = (min_index - 2) * 10;
+        int altitude = 120 + altitude_bias;        
+    }
+
+
+}
+
 std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec3 start, Vec3 end,
                                                                                 DroneStatus drone) {
     // 计算待规划航线的高度
