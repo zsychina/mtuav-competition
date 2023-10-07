@@ -226,7 +226,7 @@ int64_t myAlgorithm::solve() {
 
         FlightPlan pickup;
         // TODO 参赛选手需要自己实现一个轨迹生成函数或中转点生成函数
-        auto [pickup_waypoints, pickup_flight_time] = this->trajectory_generation(
+        auto [pickup_traj, pickup_flight_time] = this->trajectory_generation(
             the_drone.position, the_cargo.position, the_drone);  //此处使用轨迹生成函数
         // auto [pickup_waypoints, pickup_flight_time] = this->waypoints_generation(
         //     the_drone.position, the_cargo.position);  //此处使用中转点生成函数
@@ -236,7 +236,7 @@ int64_t myAlgorithm::solve() {
         pickup.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;  // 飞行计划类型：轨迹
         pickup.flight_id = std::to_string(++Algorithm::flightplan_num);
         pickup.takeoff_timestamp = current_time;  // 立刻起飞
-        pickup.segments = pickup_waypoints;
+        pickup.segments = pickup_traj;
         // 在下发飞行计划前，选手可以使用该函数自行先校验飞行计划的可行性
         // 注意ValidateFlightPlan 只能校验起点/终点均在地面上的飞行计划
         // auto reponse_pickup = this->_planner->ValidateFlightPlan(drone_limits, your_flight_plan)
@@ -282,15 +282,15 @@ int64_t myAlgorithm::solve() {
 
         FlightPlan recharge;
         // TODO 参赛选手需要自己实现一个轨迹生成函数或中转点生成函数
-        auto [recharege_traj, recharge_flight_time] = this->trajectory_generation(
+        auto [recharge_traj, recharge_flight_time] = this->trajectory_generation(
             the_drone.position, the_selected_station, the_drone);  //此处使用轨迹生成函数
         recharge.flight_purpose = FlightPurpose::FLIGHT_EXCHANGE_BATTERY;
         recharge.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;
         recharge.flight_id = std::to_string(++Algorithm::flightplan_num);
         recharge.takeoff_timestamp = current_time;  // 立刻起飞
-        recharge.segments = recharege_traj;
+        recharge.segments = recharge_traj;
         flight_plans_to_publish.push_back({the_drone.drone_id, recharge});
-        LOG(INFO) << "first point z: " << recharege_traj.front().position.z;
+        LOG(INFO) << "first point z: " << recharge_traj.front().position.z;
         LOG(INFO) << "Successfully generated flight plan, flight id: " << recharge.flight_id
                   << ", drone id: " << the_drone.drone_id
                   << ", flight purpose: " << int(recharge.flight_purpose)
@@ -337,6 +337,7 @@ int64_t myAlgorithm::solve() {
     // 下发所求出的飞行计划
     for (auto& [drone_id, flightplan] : flight_plans_to_publish) {
         auto publish_result = this->_planner->DronePlanFlight(drone_id, flightplan);
+        id_traj.insert(std::make_pair(drone_id, flightplan.segments));
         LOG(INFO) << "Published flight plan, flight id: " << flightplan.flight_id
                   << ", successfully?: " << std::boolalpha << publish_result.success
                   << ", msg: " << publish_result.msg;
@@ -457,18 +458,33 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::waypoints_generation(Vec3
     return {waypoints, flight_time};
 }
 
+// 在飞行过程重新规划，不包含在起飞和降落中
 std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 start, Vec3 end, DroneStatus drone) {
-    float current_altitude = drone.position.z;
-    float plan_altitude = current_altitude;
+    float altitude = drone.position.z;
 
-    if (drone.status == Status::FLYING || drone.status == Status::HOVERING) { // 无人机在平飞或悬停中
-        plan_altitude = current_altitude;
-    } else if (drone.status == Status::TAKING_OFF) { // 无人机在起飞中
-        auto min_element = std::min_element(this->_altitude_drone_count.begin(), this->_altitude_drone_count.end());
-        int min_index = std::distance(this->_altitude_drone_count.begin(), min_element);
-        int altitude_bias = (min_index - 2) * 10;
-        int altitude = 120 + altitude_bias;        
+    int grid_n_x = this->_map_grid.size();
+    int grid_n_y = this->_map_grid[0].size();
+    int grid_n_z = this->_map_grid[0][0].size();
+
+    // A*算法
+    AStar::Generator generator;
+    generator.setWorldSize({grid_n_x, grid_n_y}); // 跟map_grid的大小一样
+    generator.setHeuristic(AStar::Heuristic::euclidean);
+    generator.setDiagonalMovement(true);
+
+    for (int x = 0; x < grid_n_x; x++) {
+        for (int y = 0; y < grid_n_y; y++) {
+            if (this->_map_grid[x][y][(int)(altitude / this->_cell_size_z)] == 1) {
+                generator.addCollision({x, y});
+            }
+        }
     }
+
+    for (auto& drone : this->_drone_info) {
+        // 计算其他无人机的位置作为障碍
+        
+    }
+
 
 
 }

@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <vector>
+#include <string>
 #include "current_game_info.h"
 #include "mtuav_sdk_planner.h"
 #include "mtuav_sdk_types.h"
@@ -76,6 +77,8 @@ class myAlgorithm : public Algorithm {
     int _cell_size_z;
     // 记录100 110 120 130 140的高度上航线的数量
     std::vector<int> _altitude_drone_count;
+    // 建立无人机id与航线间的映射
+    std::map<std::string, std::vector<Segment>> id_traj;
 };
 
 // * 依据自己的设计添加所需的类，下面举例说明一些常用功能类
