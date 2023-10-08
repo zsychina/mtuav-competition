@@ -78,7 +78,8 @@ class myAlgorithm : public Algorithm {
     // 记录70 80 90 100 110的高度上航线的数量
     std::vector<int> _altitude_drone_count;
     // 建立无人机id与航线间的映射
-    std::map<std::string, FlightPlan> id2plan;
+    std::map<std::string, FlightPlan> _id2plan;
+    std::map<std::string, std::vector<Segment>> _id2segs;
 };
 
 // * 依据自己的设计添加所需的类，下面举例说明一些常用功能类

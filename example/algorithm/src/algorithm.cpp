@@ -131,6 +131,10 @@ int64_t myAlgorithm::solve() {
     std::vector<DroneStatus> drones_without_cargo;
     std::vector<DroneStatus> drones_need_recharge;
     std::vector<DroneStatus> drones_to_delivery;
+
+    // 平飞状态中的无人机
+    std::vector<DroneStatus> drones_flying;
+
     for (auto& drone : this->_drone_info) {
         // drone status为READY时，表示无人机当前没有飞行计划
         LOG(INFO) << "drone status, id: " << drone.drone_id
@@ -164,6 +168,13 @@ int64_t myAlgorithm::solve() {
             }
             continue;
         }
+
+        if (drone.status == Status::FLYING) {
+            drones_flying.push_back(drone);
+        }
+
+
+
         // TODO 参赛选手需要依据无人机信息定制化特殊操作
     }
     LOG(INFO) << "drone info size: " << this->_drone_info.size()
@@ -193,6 +204,34 @@ int64_t myAlgorithm::solve() {
 
     LOG(INFO) << "为没有订单的无人机生成取订单航线";
 
+    // 计算平飞过程中无人机是否需要重新规划航线
+    for (auto& this_drone : drones_flying) {
+        // 计算这架无人机与其他无人机的最短距离
+        for (auto& drone : this->_drone_info) {
+            if (drone.drone_id != this_drone.drone_id) {
+                float distance = std::sqrt(
+                    std::pow(this_drone.position.x - drone.position.x, 2) +
+                    std::pow(this_drone.position.y - drone.position.y, 2) +
+                    std::pow(this_drone.position.z - drone.position.z, 2)
+                );
+                if (distance < 20) { // 需要重新规划航线
+                    FlightPlan replan;
+
+                    auto [replan_traj, replan_flight_time] = this->trajectory_replan(this_drone.position, this->_id2segs[this_drone.drone_id].back().position);
+                    replan.flight_purpose = this->_id2plan[this_drone.drone_id].flight_purpose;
+                    replan.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;
+                    replan.flight_id = std::to_string(++Algorithm::flightplan_num);
+                    replan.takeoff_timestamp = current_time;
+                    replan.segments = replan_traj;
+                    flight_plans_to_publish.push_back({this_drone.drone_id, replan});
+                }
+            }
+        }
+    }
+
+
+
+
     // 无人机与订单进行匹配，并生成飞行轨迹
     // 示例策略1：为没有订单的无人机生成取订单航线
     // 取无人机和订单数量较小的值
@@ -220,7 +259,7 @@ int64_t myAlgorithm::solve() {
     }
 
     LOG(INFO) << "Distance calculated: ";
-    show_2dv(cost);
+    // show_2dv(cost);
 
     HungarianAlgorithm HungAlgo;
     std::vector<int> assignment;
@@ -358,7 +397,7 @@ int64_t myAlgorithm::solve() {
     for (auto& [drone_id, flightplan] : flight_plans_to_publish) {
         auto publish_result = this->_planner->DronePlanFlight(drone_id, flightplan);
 
-        id2plan.insert(std::make_pair(drone_id, flightplan));
+        this->_id2plan.insert(std::make_pair(drone_id, flightplan));
 
         LOG(INFO) << "Published flight plan, flight id: " << flightplan.flight_id
                   << ", successfully?: " << std::boolalpha << publish_result.success
@@ -510,9 +549,10 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 st
     for (auto& drone : this->_drone_info) {
         if (drone.drone_id != this_drone.drone_id) {
             // 计算其他无人机的位置作为障碍
-            for (Segment& segment : id2plan[drone.drone_id].segments) {
+            // for (Segment& segment : this->_id2plan[drone.drone_id].segments) {
+            for (Segment& segment : this->_id2segs[drone.drone_id]) {
                 // 计算每个seg的绝对时间
-                int64_t seg_time = id2plan[drone.drone_id].takeoff_timestamp + segment.time_ms;
+                int64_t seg_time = this->_id2plan[drone.drone_id].takeoff_timestamp + segment.time_ms;
                 // 将其他无人机未来一段时间的轨迹视为障碍，暂定为未来10s
                 if (seg_time >= current_time && seg_time <= current_time + 10000) {
                     int grid_x = (int)(segment.position.x / this->_cell_size_x);
@@ -599,6 +639,8 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 st
     traj_segs.insert(traj_segs.end(), landing_segs.begin(), landing_segs.end());
 
     flight_time = flying_flight_time + landing_flight_time;
+
+    this->_id2segs.insert(std::make_pair(this_drone.drone_id, traj_segs));
     return {traj_segs, flight_time};    
 }
 
@@ -729,6 +771,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec
     traj_segs.insert(traj_segs.end(), landing_segs.begin(), landing_segs.end());
 
     flight_time = takeoff_flight_time + flying_flight_time + landing_flight_time;
+    this->_id2segs.insert(std::make_pair(drone.drone_id, traj_segs));
     return {traj_segs, flight_time};
 }
 
