@@ -173,8 +173,6 @@ int64_t myAlgorithm::solve() {
             drones_flying.push_back(drone);
         }
 
-
-
         // TODO 参赛选手需要依据无人机信息定制化特殊操作
     }
     LOG(INFO) << "drone info size: " << this->_drone_info.size()
@@ -205,7 +203,9 @@ int64_t myAlgorithm::solve() {
     LOG(INFO) << "为没有订单的无人机生成取订单航线";
 
     // 计算平飞过程中无人机是否需要重新规划航线
+    // TODO: hover first
     for (auto& this_drone : drones_flying) {
+        bool need_replan = false;
         // 计算这架无人机与其他无人机的最短距离
         for (auto& drone : this->_drone_info) {
             if (drone.drone_id != this_drone.drone_id) {
@@ -214,19 +214,25 @@ int64_t myAlgorithm::solve() {
                     std::pow(this_drone.position.y - drone.position.y, 2) +
                     std::pow(this_drone.position.z - drone.position.z, 2)
                 );
-                if (distance < 20) { // 需要重新规划航线
-                    FlightPlan replan;
-
-                    auto [replan_traj, replan_flight_time] = this->trajectory_replan(this_drone.position, this->_id2segs[this_drone.drone_id].back().position);
-                    replan.flight_purpose = this->_id2plan[this_drone.drone_id].flight_purpose;
-                    replan.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;
-                    replan.flight_id = std::to_string(++Algorithm::flightplan_num);
-                    replan.takeoff_timestamp = current_time;
-                    replan.segments = replan_traj;
-                    flight_plans_to_publish.push_back({this_drone.drone_id, replan});
+                if (distance < 20) {
+                    need_replan = true;
+                    break;
                 }
             }
         }
+        if (need_replan) {
+            FlightPlan replan;
+
+            auto [replan_traj, replan_flight_time] = this->trajectory_replan(this_drone.position, this->_id2segs[this_drone.drone_id].back().position, this_drone);
+            replan.flight_purpose = this->_id2plan[this_drone.drone_id].flight_purpose;
+            replan.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;
+            replan.flight_id = std::to_string(++Algorithm::flightplan_num);
+            replan.takeoff_timestamp = current_time;
+            replan.segments = replan_traj;
+            flight_plans_to_publish.push_back({this_drone.drone_id, replan});
+            LOG(INFO) << "航线重新规划成功！";
+        }
+
     }
 
 
@@ -414,7 +420,7 @@ int64_t myAlgorithm::solve() {
     }
 
     // 根据算法计算情况，得出下一轮的算法调用间隔，单位ms
-    int64_t sleep_time_ms = 20000;
+    int64_t sleep_time_ms = 10000;
     // TODO 依据需求计算所需的sleep time
     // sleep_time_ms = Calculate_sleep_time();
     return sleep_time_ms;
@@ -563,6 +569,9 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 st
         }
     }
 
+    generator.removeCollision({(int)(start.x / this->_cell_size_x), (int)(start.y / this->_cell_size_y)});
+    generator.removeCollision({(int)(end.x / this->_cell_size_y), (int)(end.y / this->_cell_size_y)});
+
     // TODOs：
     // 如果障碍物把目的地（地面）堵住了，怎么办
     // 如果航线规划失败了怎么办
@@ -576,7 +585,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 st
     auto path = generator.findPath({start_grid_x, start_grid_y}, {end_grid_x, end_grid_y});
     std::reverse(path.begin(), path.end());
     // 移除n点连线中间的n-2个点
-    auto path = remove_middle_points(path);
+    auto path_remove_middle = remove_middle_points(path);
     LOG(INFO) << "路径点计算完毕...";    
 
     std::vector<Segment> traj_segs;
@@ -601,9 +610,9 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_replan(Vec3 st
     // 生成飞行轨迹
     std::vector<Vec3> flying_points;
     flying_points.push_back(p_start_air.position);
-    for (int i = 1; i < path.size() - 1; i++) {
+    for (int i = 1; i < path_remove_middle.size() - 1; i++) {
         Vec3 point;
-        AStar::Vec2i coordinate = path[i];
+        AStar::Vec2i coordinate = path_remove_middle[i];
         point.x = coordinate.x * this->_cell_size_x + 0.5 * this->_cell_size_x;
         point.y = coordinate.y * this->_cell_size_y + 0.5 * this->_cell_size_y;
         point.z = altitude;
@@ -651,6 +660,7 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec
     int min_index = std::distance(this->_altitude_drone_count.begin(), min_element);
     int altitude_bias = (min_index - 2) * 10;
     int altitude = 90 + altitude_bias;
+    // int altitude = 90;
 
     int grid_n_x = this->_map_grid.size();
     int grid_n_y = this->_map_grid[0].size();
@@ -679,12 +689,13 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec
     std::reverse(path.begin(), path.end());
     // 移除n点连线中间的n-2个点
     auto path_remove_middle = remove_middle_points(path);
-    // LOG(INFO) << "原轨迹点：";
-    // for (auto& coordinate : path) {
-    //     LOG(INFO) << coordinate.x << " " << coordinate.y;
-    // }
-    LOG(INFO) << "去除之后的轨迹点：";
+    auto path_remove_single_step = remove_single_step(path_remove_middle);
+    LOG(INFO) << "轨迹点1：";
     for (auto& coordinate : path_remove_middle) {
+        LOG(INFO) << coordinate.x << " " << coordinate.y;
+    }
+    LOG(INFO) << "轨迹点2：";
+    for (auto& coordinate : path_remove_single_step) {
         LOG(INFO) << coordinate.x << " " << coordinate.y;
     }
     LOG(INFO) << "路径点计算完毕...";
@@ -723,8 +734,10 @@ std::tuple<std::vector<Segment>, int64_t> myAlgorithm::trajectory_generation(Vec
     std::vector<Vec3> flying_points;
     flying_points.push_back(p_start_air.position);
     for (int i = 1; i < path_remove_middle.size() - 1; i++) {
+    // for (int i = 1; i < path_remove_single_step.size() - 1; i++) {
         Vec3 point;
         AStar::Vec2i coordinate = path_remove_middle[i];
+        // AStar::Vec2i coordinate = path_remove_single_step[i];
         point.x = coordinate.x * this->_cell_size_x + 0.5 * this->_cell_size_x;
         point.y = coordinate.y * this->_cell_size_y + 0.5 * this->_cell_size_y;
         point.z = altitude;
