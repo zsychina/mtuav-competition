@@ -135,6 +135,9 @@ int64_t myAlgorithm::solve() {
     // 平飞状态中的无人机
     std::vector<DroneStatus> drones_flying;
 
+    // 悬停中的无人机
+    std::vector<DroneStatus> drones_hovering;
+
     for (auto& drone : this->_drone_info) {
         // drone status为READY时，表示无人机当前没有飞行计划
         LOG(INFO) << "drone status, id: " << drone.drone_id
@@ -202,38 +205,6 @@ int64_t myAlgorithm::solve() {
 
     LOG(INFO) << "为没有订单的无人机生成取订单航线";
 
-    // 计算平飞过程中无人机是否需要重新规划航线
-    // TODO: hover first
-    for (auto& this_drone : drones_flying) {
-        bool need_replan = false;
-        // 计算这架无人机与其他无人机的最短距离
-        for (auto& drone : this->_drone_info) {
-            if (drone.drone_id != this_drone.drone_id) {
-                float distance = std::sqrt(
-                    std::pow(this_drone.position.x - drone.position.x, 2) +
-                    std::pow(this_drone.position.y - drone.position.y, 2) +
-                    std::pow(this_drone.position.z - drone.position.z, 2)
-                );
-                if (distance < 20) {
-                    need_replan = true;
-                    break;
-                }
-            }
-        }
-        if (need_replan) {
-            FlightPlan replan;
-
-            auto [replan_traj, replan_flight_time] = this->trajectory_replan(this_drone.position, this->_id2segs[this_drone.drone_id].back().position, this_drone);
-            replan.flight_purpose = this->_id2plan[this_drone.drone_id].flight_purpose;
-            replan.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;
-            replan.flight_id = std::to_string(++Algorithm::flightplan_num);
-            replan.takeoff_timestamp = current_time;
-            replan.segments = replan_traj;
-            flight_plans_to_publish.push_back({this_drone.drone_id, replan});
-            LOG(INFO) << "航线重新规划成功！";
-        }
-
-    }
 
 
 
@@ -399,6 +370,19 @@ int64_t myAlgorithm::solve() {
         }
     }
 
+    // 重现规划悬停中的无人机
+    for (auto& this_drone : drones_hovering) {
+        FlightPlan replan;
+        auto [replan_traj, replan_flight_time] = this->trajectory_replan(this_drone.position, this->_id2segs[this_drone.drone_id].back().position, this_drone);
+        replan.flight_purpose = this->_id2plan[this_drone.drone_id].flight_purpose;
+        replan.flight_plan_type = FlightPlanType::PLAN_TRAJECTORIES;
+        replan.flight_id = std::to_string(++Algorithm::flightplan_num);
+        replan.takeoff_timestamp = current_time;
+        replan.segments = replan_traj;
+        flight_plans_to_publish.push_back({this_drone.drone_id, replan});
+        LOG(INFO) << "航线重新规划成功！";        
+    }
+
     // 下发所求出的飞行计划
     for (auto& [drone_id, flightplan] : flight_plans_to_publish) {
         auto publish_result = this->_planner->DronePlanFlight(drone_id, flightplan);
@@ -413,6 +397,29 @@ int64_t myAlgorithm::solve() {
     // 如果有需要空中悬停的无人机
     std::vector<DroneStatus> drones_to_hover;
     // TODO 找出需要悬停的无人机
+
+    // 计算平飞过程中无人机是否需要重新规划航线
+    for (auto& this_drone : drones_flying) {
+        bool need_replan = false;
+        // 计算这架无人机与其他无人机的最短距离
+        for (auto& drone : this->_drone_info) {
+            if (drone.drone_id != this_drone.drone_id) {
+                float distance = std::sqrt(
+                    std::pow(this_drone.position.x - drone.position.x, 2) +
+                    std::pow(this_drone.position.y - drone.position.y, 2) +
+                    std::pow(this_drone.position.z - drone.position.z, 2)
+                );
+                if (distance < 20) {
+                    need_replan = true;
+                    break;
+                }
+            }
+        }
+        if (need_replan) {
+            drones_to_hover.push_back(this_drone);
+        }
+    }
+
     // 下发无人机悬停指令
     for (auto& drone : drones_to_hover) {
         this->_planner->DroneHover(drone.drone_id);
@@ -420,7 +427,7 @@ int64_t myAlgorithm::solve() {
     }
 
     // 根据算法计算情况，得出下一轮的算法调用间隔，单位ms
-    int64_t sleep_time_ms = 10000;
+    int64_t sleep_time_ms = 20000;
     // TODO 依据需求计算所需的sleep time
     // sleep_time_ms = Calculate_sleep_time();
     return sleep_time_ms;
