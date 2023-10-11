@@ -176,6 +176,10 @@ int64_t myAlgorithm::solve() {
             drones_flying.push_back(drone);
         }
 
+        if (drone.status == Status::HOVERING) {
+            drones_hovering.push_back(drone);
+        }
+
         // TODO 参赛选手需要依据无人机信息定制化特殊操作
     }
     LOG(INFO) << "drone info size: " << this->_drone_info.size()
