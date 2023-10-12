@@ -47,8 +47,8 @@ AStar::CoordinateList remove_single_step(AStar::CoordinateList& path) {
     }
     result.push_back(path[0]);
     for (int i = 1; i < path.size() - 1; i++) {
-        if (std::fabs(path[i + 1].x - path[i].x) <= 1 &&
-            std::fabs(path[i + 1].y - path[i].y) <= 1) { // 下一个坐标是这一个坐标的相邻点
+        if (std::abs(path[i + 1].x - path[i].x) <= 1 &&
+            std::abs(path[i + 1].y - path[i].y) <= 1) { // 下一个坐标是这一个坐标的相邻点
 
             result.push_back(path[i + 1]);
             i++;
@@ -239,7 +239,7 @@ int64_t myAlgorithm::solve() {
         }
     }
 
-    LOG(INFO) << "Distance calculated: ";
+    // LOG(INFO) << "Distance calculated: ";
     // show_2dv(cost);
 
     HungarianAlgorithm HungAlgo;
@@ -287,7 +287,7 @@ int64_t myAlgorithm::solve() {
                   << ", flight type: " << int(pickup.flight_plan_type)
                   << ", cargo id: " << the_cargo.id;
 
-        // break;  // 每次只生成一条取货飞行计划
+        break;  // 每次只生成一条取货飞行计划
     }
 
     // 示例策略2：为电量小于指定数值的无人机生成换电航线
@@ -370,7 +370,7 @@ int64_t myAlgorithm::solve() {
                       << ", flight purpose: " << int(delivery.flight_purpose)
                       << ", flight type: " << int(delivery.flight_plan_type)
                       << ", cargo id: " << the_cargo.id;
-            // break;  // 每次只生成一条送货飞行计划
+            break;  // 每次只生成一条送货飞行计划
         }
     }
 
